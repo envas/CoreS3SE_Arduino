@@ -1,0 +1,1 @@
+Priklad cteni stavu baterie a vypis hodnot na touch panel.

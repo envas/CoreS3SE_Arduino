@@ -5,7 +5,7 @@
 void setup()
 {
     auto cfg = M5.config();
-    // if using ext power input(Grove Port or DC input power supply) needs to be set to false.
+    // if using ext power input (Grove Port or DC input power supply) needs to be set to false.
     // cfg.output_power = false;
     M5.begin(cfg);
     M5.Display.setTextSize(2);
@@ -32,5 +32,6 @@ void loop()
     int vbus_vol = M5.Power.getVBUSVoltage();
     M5.Display.setCursor(10, 90);
     M5.Display.printf("VBus Voltage: %dmv", vbus_vol);
+
     delay(1000);
 }
