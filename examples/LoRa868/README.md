@@ -5,18 +5,16 @@
 * [Documentace](https://docs.m5stack.com/en/module/Module-LoRa868_V1.1) 
 
 Modul LoRa868 v1.1 je komunikační modul LoRa (provozní frekvence 868 MHz) ze série M5Stack, 
-který využívá řešení modulu Ra-01H (čip SX1276). Modul je vybaven vestavěnou anténou SMA a navíc poskytuje 
-dvě rozhraní pro připojení antén MCX, což uživatelům umožňuje volně přepínat mezi různými typy antén podle svých potřeb. 
-Modul je dále vybaven DIP přepínačem, který umožňuje uživatelům flexibilně přepínat mezi různými komunikačními piny, 
-což umožňuje současné použití více modulů a poskytuje tak více možností přizpůsobení a flexibility. Je vhodný pro 
-vzdálený monitoring, inteligentní města, domácí a průmyslovou automatizaci, zařízení internetu věcí (IoT) a
-další oblasti.
+který využívá modulu Ra-01H od AI-Thinker (čip SX1276). Modul je vybaven vestavěnou anténou SMA a 
+navíc poskytuje dvě rozhraní pro připojení antén MCX, což umožňuje volně přepínat mezi různými typy antén. 
+Modul je vybaven DIP přepínačem, který umožňuje flexibilně přepínat mezi různými komunikačními piny, 
+což dovoluje současné použití více modulů a poskytuje tak více možností přizpůsobení a flexibility.
 
-Modul ma jako rozhrani SPI. Pro komunikaci s modulem je pouzira knihovna [RadioLib](https://github.com/jgromes/RadioLib)
+Modul používá jako komunikační rozhrani SPI. Pro komunikaci s modulem je pouzita knihovna [RadioLib](https://github.com/jgromes/RadioLib)
 
 ## Konfigurace
 
-Parametry modulu, ktere mohou byt dulezite pri konfigurovani
+Parametry modulu, ktere mohou byt dulezite pro konfigurovani
 
 ```
 #define LORA_BW 500.0
