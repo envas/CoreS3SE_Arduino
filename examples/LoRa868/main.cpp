@@ -27,10 +27,9 @@
 #include <Arduino.h>
 #include <M5GFX.h>
 #include <M5Unified.h>
-#include <BMP280.h>
-#include <SHT4X.h>
+#include <M5UnitUnified.h>
+#include <M5UnitUnifiedENV.h>
 #include <RadioLib.h>
-
 #include "main.h"
 #include "lora.h"
 #include "utils.h"
@@ -38,11 +37,14 @@
 extern RTC_DATA_ATTR uint16_t bootCount;
 
 // environmental sensor
-SHT4X  sht4;
-BMP280 bmp;
+m5::unit::UnitUnified Units;
+m5::unit::UnitENV4    unitENV4;
+auto&                 sht40  = unitENV4.sht40;
+auto&                 bmp280 = unitENV4.bmp280;
+
 
 /**
- * Report wakeup with the reason. Abbreviated version from the Arduino-ESP32 package, see
+ * Report wakeup reason. Abbreviated version from the Arduino-ESP32 package, see
  * https://espressif-docs.readthedocs-hosted.com/projects/arduino-esp32/en/latest/api/deepsleep.html
  * for the complete set of options
  */
@@ -146,24 +148,17 @@ void setup() {
     M5.Display.setTextScroll(false);
     M5.Display.powerSave(false);
 
+    auto pin_num_sda = M5.getPin(m5::pin_name_t::port_a_sda);
+    auto pin_num_scl = M5.getPin(m5::pin_name_t::port_a_scl);
+
     Serial.begin(115200);
-    Wire.begin();
+    Wire.begin(pin_num_sda, pin_num_scl, 400000U);
     SPI.begin();
-    if (!sht4.begin(&Wire, SHT40_I2C_ADDR_44, 2, 1, 400000U)) {
-        debug(F("SHT4 not working"),  0);
-    }
-    if (bmp.begin(&Wire, BMP280_I2C_ADDR, 2, 1, 400000U)) {
-        debug(F("BMP not working"),  0);
-    }
 
-    sht4.setPrecision(SHT4X_HIGH_PRECISION);
-    sht4.setHeater(SHT4X_NO_HEATER);
-    bmp.setSampling(BMP280::MODE_NORMAL,     /* Operating Mode.       */
-                    BMP280::SAMPLING_X2,     /* Temp. oversampling    */
-                    BMP280::SAMPLING_X16,    /* Pressure oversampling */
-                    BMP280::FILTER_X16,      /* Filtering.            */
-                    BMP280::STANDBY_MS_500); /* Standby time.         */
+    Units.add(unitENV4, Wire);
+    Units.begin();
 
+    M5.update();
     M5.Display.clear();
     M5.Display.setCursor(0, 0);
 
@@ -180,18 +175,20 @@ void setup() {
         int16_t bat_vol        = M5.Power.getBatteryVoltage(); // 0 .. 4095 voltage in millivolt
         int32_t bat_level      = M5.Power.getBatteryLevel();   // 0 .. 100  voltage percent
         int16_t vbus_vol       = M5.Power.getVBUSVoltage();    // 0 .. 4095 voltage in millivolt, -1 if not applicable
-        float   temp           = 0.0f;
-        float   humi           = 0.0f;
+        float   temperature    = 0.0f;
+        float   humidity       = 0.0f;
         float   pressure       = 0.0f;
         float   altitude       = 0.0f;
 
-        if (sht4.update()) {
-            temp     = sht4.cTemp;
-            humi     = sht4.humidity;
+
+        Units.update();
+        if (sht40.updated()) {
+            temperature = sht40.temperature();
+            humidity    = sht40.humidity();
         }
-        if (bmp.update()) {
-            pressure = bmp.pressure;
-            altitude = bmp.altitude;
+        if (bmp280.updated()) {
+            pressure = bmp280.pressure() * 0.01f; // convert to hPa
+            altitude = calculate_altitude(pressure, 1013.25f);
         }
 
         uplink_buff[uplink_buff_size++] = bat_ischarging ? 1 : 0;
@@ -200,14 +197,14 @@ void setup() {
         uplink_buff[uplink_buff_size++] = bat_level & 0xFF;
         uplink_buff[uplink_buff_size++] = vbus_vol == -1 ? 0x00 : vbus_vol >> 8;
         uplink_buff[uplink_buff_size++] = vbus_vol == -1 ? 0x00 : vbus_vol & 0xFF;
-        uplink_buff[uplink_buff_size++] = ((uint8_t*)&temp)[3];
-        uplink_buff[uplink_buff_size++] = ((uint8_t*)&temp)[2];
-        uplink_buff[uplink_buff_size++] = ((uint8_t*)&temp)[1];
-        uplink_buff[uplink_buff_size++] = ((uint8_t*)&temp)[0];
-        uplink_buff[uplink_buff_size++] = ((uint8_t*)&humi)[3];
-        uplink_buff[uplink_buff_size++] = ((uint8_t*)&humi)[2];
-        uplink_buff[uplink_buff_size++] = ((uint8_t*)&humi)[1];
-        uplink_buff[uplink_buff_size++] = ((uint8_t*)&humi)[0];
+        uplink_buff[uplink_buff_size++] = ((uint8_t*)&temperature)[3];
+        uplink_buff[uplink_buff_size++] = ((uint8_t*)&temperature)[2];
+        uplink_buff[uplink_buff_size++] = ((uint8_t*)&temperature)[1];
+        uplink_buff[uplink_buff_size++] = ((uint8_t*)&temperature)[0];
+        uplink_buff[uplink_buff_size++] = ((uint8_t*)&humidity)[3];
+        uplink_buff[uplink_buff_size++] = ((uint8_t*)&humidity)[2];
+        uplink_buff[uplink_buff_size++] = ((uint8_t*)&humidity)[1];
+        uplink_buff[uplink_buff_size++] = ((uint8_t*)&humidity)[0];
         uplink_buff[uplink_buff_size++] = ((uint8_t*)&pressure)[3];
         uplink_buff[uplink_buff_size++] = ((uint8_t*)&pressure)[2];
         uplink_buff[uplink_buff_size++] = ((uint8_t*)&pressure)[1];

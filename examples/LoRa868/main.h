@@ -1,7 +1,7 @@
 #ifndef _RADIOLIB_EX_LORAWAN_CONFIG_H
 #define _RADIOLIB_EX_LORAWAN_CONFIG_H
 
-#define TIME_TO_SLEEP  20         // sleep time in seconds (15 minutes)
+#define TIME_TO_SLEEP  16 * 60         // sleep time in seconds (15 minutes)
 
 // first you have to set your radio model and pin configuration
 //
