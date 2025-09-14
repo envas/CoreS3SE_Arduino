@@ -17,7 +17,7 @@ uint8_t  appKey[] = {RADIOLIB_LORAWAN_APP_KEY};
 uint8_t  nwkKey[] = {RADIOLIB_LORAWAN_NWK_KEY};
 
 
-SX1276      radio = new Module(CONFIG_LORA_NSS, CONFIG_LORA_IRQ, CONFIG_LORA_RST, CONFIG_LORA_BUSY);
+SX1276      radio = new Module(CONFIG_LORA_NSS, CONFIG_LORA_IRQ, CONFIG_LORA_RST);
 LoRaWANNode node(&radio, &EU868, 0);
 
 // Probuzení z hlubokého spánku je jako resetování celého procesoru, s výjimkou toho,
@@ -224,9 +224,7 @@ int16_t lora_activate() {
     }
 
     state = lora_join();
-    if (state != RADIOLIB_LORAWAN_NEW_SESSION) {
-        debug(F("join"), state);
-    } else {
+    if (state == RADIOLIB_LORAWAN_NEW_SESSION) {
         M5.Display.println("LoRaWAN join success");
     }
 
@@ -262,8 +260,11 @@ int16_t lora_send_receive(uint8_t* data_up, size_t data_up_len, void (*callback)
             callback(data_down, data_down_len);
         }
     }
-    M5.Display.print(F("FCntUp: "));
-    M5.Display.println(node.getFCntUp());
 
     return state;
 }
+
+ void lora_sleep() {
+     radio.sleep();
+ }
+

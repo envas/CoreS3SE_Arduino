@@ -22,24 +22,57 @@
   For LoRaWAN details, see the wiki page
   https://github.com/jgromes/RadioLib/wiki/LoRaWAN
 
+  For M5Stack Units see
+  https://docs.m5stack.com/en/arduino/projects/unit/unit_env
+
 */
 
 #include <Arduino.h>
 #include <M5GFX.h>
 #include <M5Unified.h>
-#include <BMP280.h>
-#include <SHT4X.h>
+#include <M5UnitUnified.h>
+#include <M5UnitUnifiedENV.h>
 #include <RadioLib.h>
 
 #include "main.h"
+
+#include <BMP280.h>
+
 #include "lora.h"
 #include "utils.h"
 
 extern RTC_DATA_ATTR uint16_t bootCount;
 
+// display
+M5Canvas canvas(&M5.Display);
+
+// all units
+m5::unit::UnitUnified Units;
+
 // environmental sensor
-SHT4X  sht4;
-BMP280 bmp;
+m5::unit::UnitENV4 unitENV4;
+auto&              sht40  = unitENV4.sht40;
+auto&              bmp280 = unitENV4.bmp280;
+
+void bmp280_sleep() {
+    // bmp280.writeRegister8(0xF4, static_cast<uint8_t>(0xFC), true);
+}
+
+void bmp280_wakeup() {
+    // bmp280.writeRegister8(0xF4, 0x3F, 1);
+}
+
+/**
+ * Calculate altitude based on the pressure
+ *
+ * @param pressure  atmospherical pressure
+ * @param seaLvhPa  pressure for the see level
+ *
+ * @return altitude in meters
+ */
+float calculate_altitude(const float pressure, const float seaLvhPa = 1013.25f) {
+    return 44330.f * (1.0f - pow((pressure / 100.f) / seaLvhPa, 0.1903f));
+}
 
 /**
  * Report wakeup with the reason. Abbreviated version from the Arduino-ESP32 package, see
@@ -51,9 +84,7 @@ void print_wakeup_reason() {
     if (wakeup_reason == ESP_SLEEP_WAKEUP_TIMER) {
         M5.Display.println(F("Wake from timer"));
     } else {
-        M5.Display.println(F("Wake up not from timer!"));
-        M5.Display.print(F("Wake up reason: "));
-        M5.Display.println(wakeup_reason);
+        M5.Display.println(F("Boot up"));
     }
 
     M5.Display.print(F("Boot count: "));
@@ -62,6 +93,8 @@ void print_wakeup_reason() {
 
 /**
  * Puts the device into the lowest power deep-sleep mode
+ *
+ * @param seconds   sleep duration
  */
 void deepsleep(uint32_t seconds) {
     M5.Display.println("Going to sleep ...");
@@ -69,12 +102,14 @@ void deepsleep(uint32_t seconds) {
     // give the user a chance to read the display
     vTaskDelay(2000 / portTICK_PERIOD_MS);
 
+    // put LoRa into the lowest power deep-sleep mode
+    lora_sleep();
+
     // turn off the display before entering deep sleep (ESP.deepSleep does not do it)
     M5.Display.sleep();
     M5.Display.powerSave(true);
 
     // enter deep sleep  for `seconds`
-    M5.update();
     ESP.deepSleep(seconds * 1000UL * 1000UL); // time to sleep in microseconds
 
     // DO NOT USE THE ESP32-IDF API WHEN ON BATTERY!
@@ -111,11 +146,11 @@ void downlink_handler(uint8_t* data, size_t len) {
  *
  * This method:
  * - Configures and initializes M5 core components.
- * - Sets up serial communication and SPI.
+ * - Sets up serial communication.
  * - Displays text settings on the screen.
  * - Prints the wakeup reason after a reset or wakeup from deep sleep.
  * - Activates the LoRaWAN session, determines if a new session is created
- *   or restored, and prepares battery-related data to send via LoRaWAN.
+ *   or restored, and prepares the payload data to send via LoRaWAN.
  * - Sends uplink data through LoRaWAN and updates the session to maintain connectivity.
  * - Configures the ESP32 deep sleep timer and initiates the deep sleep mode.
  *
@@ -129,11 +164,19 @@ void downlink_handler(uint8_t* data, size_t len) {
  * - Battery voltage in millivolts (2 bytes, MSB first).
  * - Battery percentage level (1 byte).
  * - VBUS voltage in millivolts (2 bytes, MSB first, or 0x0000 if VBUS is not available).
+ * - temperature (4 bytes as floating point)
+ * - humidity (4 bytes as floating point)
+ * - athmospheric pressure in hPa (4 bytes as floating point)
+ * - altitude (4 bytes as floating point, calculated from pressure)
+ *
  */
 void setup() {
     int16_t state;
 
+    Serial.begin(115200);
+
     auto cfg = M5.config();
+
     M5.begin(cfg);
     M5.Power.begin();
 
@@ -146,28 +189,41 @@ void setup() {
     M5.Display.setTextScroll(false);
     M5.Display.powerSave(false);
 
-    Serial.begin(115200);
-    Wire.begin();
-    SPI.begin();
-    if (!sht4.begin(&Wire, SHT40_I2C_ADDR_44, 2, 1, 400000U)) {
-        debug(F("SHT4 not working"),  0);
-    }
-    if (bmp.begin(&Wire, BMP280_I2C_ADDR, 2, 1, 400000U)) {
-        debug(F("BMP not working"),  0);
-    }
-
-    sht4.setPrecision(SHT4X_HIGH_PRECISION);
-    sht4.setHeater(SHT4X_NO_HEATER);
-    bmp.setSampling(BMP280::MODE_NORMAL,     /* Operating Mode.       */
-                    BMP280::SAMPLING_X2,     /* Temp. oversampling    */
-                    BMP280::SAMPLING_X16,    /* Pressure oversampling */
-                    BMP280::FILTER_X16,      /* Filtering.            */
-                    BMP280::STANDBY_MS_500); /* Standby time.         */
-
-    M5.Display.clear();
-    M5.Display.setCursor(0, 0);
-
     print_wakeup_reason();
+
+    auto pin_num_sda = M5.getPin(m5::pin_name_t::port_a_sda);
+    auto pin_num_scl = M5.getPin(m5::pin_name_t::port_a_scl);
+
+    Wire.begin(pin_num_sda, pin_num_scl, 400000U);
+
+    if (!Units.add(unitENV4, Wire) || !Units.begin()) {
+        M5.Display.clear(TFT_RED);
+        M5.Display.setCursor(0, 0);
+        M5.Display.println("Failed to begin Unit ENV4");
+        while (true) {
+            m5::utility::delay(10000);
+        }
+    }
+
+    bmp280.writeOversamplingPressure(m5::unit::bmp280::Oversampling::X8);
+    bmp280.writeOversamplingTemperature(m5::unit::bmp280::Oversampling::X8);
+    bmp280.writeStandbyTime(m5::unit::bmp280::Standby::Time4sec);
+    bmp280.writePowerMode(m5::unit::bmp280::PowerMode::Normal);
+    bmp280.writeUseCaseSetting(m5::unit::bmp280::UseCase::LowPower);
+
+    M5.update();
+    sht40.update(true);
+    bmp280.update(true);
+
+    while (!(sht40.updated() )) {
+        sht40.update(true);
+        delay(500);
+    }
+
+    while (!(bmp280.updated() )) {
+        bmp280.update(true);
+        delay(500);
+    }
 
     state = lora_activate();
 
@@ -183,16 +239,27 @@ void setup() {
         float   temp           = 0.0f;
         float   humi           = 0.0f;
         float   pressure       = 0.0f;
+        float   pressure_hpa   = 0.0f;
         float   altitude       = 0.0f;
+        float   ttemp          = 0.0f;
 
-        if (sht4.update()) {
-            temp     = sht4.cTemp;
-            humi     = sht4.humidity;
-        }
-        if (bmp.update()) {
-            pressure = bmp.pressure;
-            altitude = bmp.altitude;
-        }
+
+
+        temp         = sht40.temperature();
+        humi         = sht40.humidity();
+        pressure     = bmp280.pressure();
+        ttemp        = bmp280.temperature();
+        altitude     = calculate_altitude(pressure);
+        pressure_hpa = pressure / 100.0f;
+
+        M5.Display.fillRect(0, 0, 320, 60, TFT_BLACK);
+        M5.Display.setCursor(0, 0);
+        M5.Display.printf(">Temperature: %.1f\n", temp);
+        M5.Display.printf(">Humidity:    %.1f\n", humi);
+        M5.Display.printf(">Pressure:    %.1f\n", pressure_hpa);
+        M5.Display.printf(">Altitude:    %.1f\n", altitude);
+        M5.Display.printf(">BMP280 temp: %.1f\n", ttemp);
+        M5.Display.println();
 
         uplink_buff[uplink_buff_size++] = bat_ischarging ? 1 : 0;
         uplink_buff[uplink_buff_size++] = bat_vol >> 8;
@@ -208,21 +275,27 @@ void setup() {
         uplink_buff[uplink_buff_size++] = ((uint8_t*)&humi)[2];
         uplink_buff[uplink_buff_size++] = ((uint8_t*)&humi)[1];
         uplink_buff[uplink_buff_size++] = ((uint8_t*)&humi)[0];
-        uplink_buff[uplink_buff_size++] = ((uint8_t*)&pressure)[3];
-        uplink_buff[uplink_buff_size++] = ((uint8_t*)&pressure)[2];
-        uplink_buff[uplink_buff_size++] = ((uint8_t*)&pressure)[1];
-        uplink_buff[uplink_buff_size++] = ((uint8_t*)&pressure)[0];
+        uplink_buff[uplink_buff_size++] = ((uint8_t*)&pressure_hpa)[3];
+        uplink_buff[uplink_buff_size++] = ((uint8_t*)&pressure_hpa)[2];
+        uplink_buff[uplink_buff_size++] = ((uint8_t*)&pressure_hpa)[1];
+        uplink_buff[uplink_buff_size++] = ((uint8_t*)&pressure_hpa)[0];
         uplink_buff[uplink_buff_size++] = ((uint8_t*)&altitude)[3];
         uplink_buff[uplink_buff_size++] = ((uint8_t*)&altitude)[2];
         uplink_buff[uplink_buff_size++] = ((uint8_t*)&altitude)[1];
         uplink_buff[uplink_buff_size++] = ((uint8_t*)&altitude)[0];
 
-        state = lora_send_receive(uplink_buff, uplink_buff_size, downlink_handler);
+        lora_send_receive(uplink_buff, uplink_buff_size, downlink_handler);
+        lora_save_session();
+
+        deepsleep(TIME_TO_SLEEP);
+    } else {
+        M5.Display.clear(TFT_RED);
+        M5.Display.setCursor(0, 0);
+        M5.Display.println("Failed to activate LoRaWAN session");
+        while (true) {
+            m5::utility::delay(10000);
+        }
     }
-
-    lora_save_session();
-
-    deepsleep(TIME_TO_SLEEP);
 }
 
 // The ESP32 wakes from deep-sleep and starts from the very beginning.
