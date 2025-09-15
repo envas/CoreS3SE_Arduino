@@ -1,7 +1,7 @@
 ## Priklad pro M5Stamp PLC
 
 * SKU:SKU:K141
-* [Documentace](https://docs.m5stack.com/en/module/Module-LoRa868_V1.1))
+* [Documentace](https://docs.m5stack.com/en/module/Module-LoRa868_V1.1)
 * [Knihovna a priklady](https://github.com/m5stack/M5StamPLC)
 
 StamPLC je programovatelný logický řadič IoT určený pro průmyslovou automatizaci a vzdálený monitoring. 
