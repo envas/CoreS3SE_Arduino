@@ -7,9 +7,6 @@
 
 #include "utils.h"
 
-float calculate_altitude(const float pressure, const float seaLvhPa = 1013.25f) {
-    return 44330.f * (1.0f - pow((pressure / 100.f) / seaLvhPa, 0.1903f));
-}
 
 /**
  *

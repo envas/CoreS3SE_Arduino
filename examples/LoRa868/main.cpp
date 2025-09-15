@@ -33,6 +33,7 @@
 #include <M5UnitUnified.h>
 #include <M5UnitUnifiedENV.h>
 #include <RadioLib.h>
+#include <WiFi.h>
 
 #include "main.h"
 
@@ -53,14 +54,6 @@ m5::unit::UnitUnified Units;
 m5::unit::UnitENV4 unitENV4;
 auto&              sht40  = unitENV4.sht40;
 auto&              bmp280 = unitENV4.bmp280;
-
-void bmp280_sleep() {
-    // bmp280.writeRegister8(0xF4, static_cast<uint8_t>(0xFC), true);
-}
-
-void bmp280_wakeup() {
-    // bmp280.writeRegister8(0xF4, 0x3F, 1);
-}
 
 /**
  * Calculate altitude based on the pressure
@@ -102,14 +95,19 @@ void deepsleep(uint32_t seconds) {
     // give the user a chance to read the display
     vTaskDelay(2000 / portTICK_PERIOD_MS);
 
-    // put LoRa into the lowest power deep-sleep mode
+    // put LoRa into the sleep mode
     lora_sleep();
 
-    // turn off the display before entering deep sleep (ESP.deepSleep does not do it)
+    // put sensor into the sleep mode
+    bmp280.writePowerMode(m5::unit::bmp280::PowerMode::Sleep);
+
     M5.Display.sleep();
-    M5.Display.powerSave(true);
+    M5.Display.waitDisplay();
+
+    gpio_deep_sleep_hold_en();
 
     // enter deep sleep  for `seconds`
+    // M5.Power.deepSleep(seconds * 1000UL * 1000UL, true);
     ESP.deepSleep(seconds * 1000UL * 1000UL); // time to sleep in microseconds
 
     // DO NOT USE THE ESP32-IDF API WHEN ON BATTERY!
@@ -176,6 +174,11 @@ void setup() {
     Serial.begin(115200);
 
     auto cfg = M5.config();
+    cfg.output_power = false;
+    cfg.pmic_button = false;
+    cfg.internal_imu = false;
+    cfg.internal_mic = false;
+    cfg.internal_spk = false;
 
     M5.begin(cfg);
     M5.Power.begin();
@@ -183,6 +186,12 @@ void setup() {
     // disable Bluetooth
     btStop();
 
+
+    WiFi.disconnect();
+    WiFi.mode(WIFI_OFF);
+
+    M5.Display.begin();
+    // M5.Display.powerSave(true);
     M5.Display.setTextSize(1);
     M5.Display.setTextColor(YELLOW);
     M5.Display.setFont(&fonts::FreeMono9pt7b);

@@ -44,3 +44,12 @@ pro mne fungovaly OK.
 ```
 SX1276 radio = new Module(CONFIG_LORA_NSS, CONFIG_LORA_IRQ, CONFIG_LORA_RST, CONFIG_LORA_BUSY);
 ```
+
+### Spotreba
+
+Pro LoRaWAN projekty je dulezita spotreba. Bohuzel M5Stack CoreS3SE + LoRa868 V1.1 potrebuji i v deep-sleep mode asi 70mA, pri vysilani je spotreba kratce asi 170mA. To neni
+pro prakticke nasazeni akceptovatelne. Zrejme proto M5Stack nenabizi zadne moduly pro napajeni ze solarnich panelu, jako to ma RAK Wireless.
+
+![power_cores3se.png](../../media/power_cores3se.png)
+
+Neni mi jasne, co vse by se jeste dalo vypnout, tech 70mA je opravdu moc.
