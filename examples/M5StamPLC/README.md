@@ -20,3 +20,16 @@ pro zpětnou vazbu v reálném čase o provozu zařízení, zatímco modul RTC (
 času a záznam protokolů. Tovární firmware automaticky nahrává data na cloudovou platformu M5 EZData, generuje 
 monitorovací stránky a nabízí uživatelům pohodlný vzdálený přístup a ovládání přes cloud. Tento produkt je vhodný 
 pro průmyslovou automatizaci, vzdálený monitoring, inteligentní výrobu a další aplikace.
+
+### M5StamPLC a Serial
+
+PlatformIO vůbec nepoužívá jádro Arduino specifické pro M5Stack. Používá standardní jádro Espressif
+(https://github.com/espressif/arduino-esp32/). V případě M5StampS3 je při pohledu na schémata vidět,
+že na desce není žádný čip adaptéru USB-UART, ESP32S3 je připojen přímo k zástrčce USB-C. Proto by Serial
+měl používat nativní funkce USB-CDC čipu ESP32S3. Arduino IDE (jádro Espressif) i PlatformIO však tuto funkci
+mají vypnutou. Proto je třeba kompilovat kód pro M5StampS3 s flagem `ARDUINO_USB_CDC_ON_BOOT=1`:
+
+```
+build_flags =
+    -DARDUINO_USB_CDC_ON_BOOT=1
+```
