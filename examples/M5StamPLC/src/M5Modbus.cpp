@@ -7,16 +7,19 @@
 
 #include "M5Modbus.hpp"
 
-M5Modbus::M5Modbus(HardwareSerial& serial, uint16_t baud) {
-    _serial   = serial;
+
+/**
+ *
+ * @param baud
+ */
+M5Modbus::M5Modbus(uint16_t baud) {
     _baudrate = baud;
-    _MB       = new ModbusClientRTU(REDE_PIN);
+    _MB = new ModbusClientRTU(REDE_PIN);
 }
 
 M5Modbus::~M5Modbus() {
     delete _MB;
 }
-
 
 /**
  * Received data handler.
@@ -41,23 +44,22 @@ void handleError(Error error, uint32_t token) {
  * Initialization happens here
  */
 void M5Modbus::begin() {
-    // Set up Serial2 connected to Modbus RTU
-    RTUutils::prepareHardwareSerial(_serial);
-    _serial.begin(_baudrate, SERIAL_8N1, RX_PIN, TX_PIN);
-
-    // Set up ModbusRTU client.
-    // - provide onData handler function
+    // Provide onData handler function
     _MB->onDataHandler([this](ModbusMessage rsp, uint32_t token) {
         this->handleData(rsp, token);
     });
-    // - provide onError handler function
+    // Provide onError handler function
     _MB->onErrorHandler([this](Error err, uint32_t token) {
         this->handleError(err, token);
     });
     // Set message timeout to 2000ms
     _MB->setTimeout(2000);
+    // Setup Serial1 for ModbusRTU
+    RTUutils::prepareHardwareSerial(Serial1);
+     // Setup Serial 1 parameters. For Serial1 (and Serial2) we can use any pins
+    Serial1.begin(_baudrate, SERIAL_8N1, RX_PIN, TX_PIN);
     // Start ModbusRTU background task
-    _MB->begin(_serial);
+    _MB->begin(Serial1);
 }
 
 /**

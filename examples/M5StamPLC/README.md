@@ -33,3 +33,9 @@ mají vypnutou. Proto je třeba kompilovat kód pro M5StampS3 s flagem `ARDUINO_
 build_flags =
     -DARDUINO_USB_CDC_ON_BOOT=1
 ```
+
+### Modbus
+
+Modbus example for StamPLC poziva eModbus library
+
+https://emodbus.github.io/

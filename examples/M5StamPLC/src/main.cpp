@@ -6,10 +6,14 @@
 #include <M5StamPLC.h>
 #include <Relay.hpp>
 
-Relay relay;
+#include <M5Modbus.hpp>
+#include <Sensor.hpp>
 
 void setup() {
     M5StamPLC.begin();
+
+    M5Modbus* modbus = new M5Modbus(19200);
+    Sensor sensor = Sensor(0, modbus, 2);
 
     Serial.begin(115200);
     Serial.println("Setup finished");
@@ -17,6 +21,4 @@ void setup() {
 
 void loop() {
     delay(2000);
-    relay.toggle();
-    Serial.printf("Relay toggled, state = %s\n", relay.isOn() ? "ON" : "OFF");
 }

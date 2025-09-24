@@ -4,8 +4,7 @@
 
 #include <Arduino.h>
 #include <M5Unified.hpp>
-#include "Sensor.hpp"
-#include "ModbusClientRTU.h"
+#include <ModbusClientRTU.h>
 
 #ifndef M5STACK_MODBUS_H
 #define M5STACK_MODBUS_H
@@ -19,20 +18,19 @@ class M5Modbus {
     ModbusClientRTU* _MB;
 
 protected:
-    HardwareSerial _serial;
-    uint16_t       _rx_pin;
-    uint16_t       _tx_pin;
-    uint16_t       _rede_pin;
-    uint32_t       _baudrate;
+    uint16_t _rx_pin;
+    uint16_t _tx_pin;
+    uint16_t _rede_pin;
+    uint32_t _baudrate;
 
 public:
-    M5Modbus(HardwareSerial& serial, uint16_t baud = 9600);
+    M5Modbus(uint16_t baud = 9600);
     ~M5Modbus();
 
-    void begin();
+    void  begin();
     Error addRequest(uint32_t token, uint8_t address, FunctionCode func, uint16_t reg, uint16_t num);
-    void handleData(ModbusMessage response, uint32_t token);
-    void handleError(Error error, uint32_t token);
+    void  handleData(ModbusMessage response, uint32_t token);
+    void  handleError(Error error, uint32_t token);
 };
 
 #endif // M5STACK_MODBUS_H
