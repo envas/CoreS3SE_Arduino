@@ -16,6 +16,7 @@
 
 class M5Modbus {
     ModbusClientRTU* _MB;
+    HardwareSerial*  _serial;
 
 protected:
     uint16_t _rx_pin;
@@ -24,11 +25,12 @@ protected:
     uint32_t _baudrate;
 
 public:
-    M5Modbus(uint16_t baud = 9600);
+    M5Modbus(HardwareSerial* serial = nullptr, uint16_t baud = 9600);
     ~M5Modbus();
 
     void  begin();
-    Error addRequest(uint32_t token, uint8_t address, FunctionCode func, uint16_t reg, uint16_t num);
+    Error addRequest(ModbusMessage msg, uint32_t token);
+    ModbusMessage syncRequest(ModbusMessage msg, uint32_t token);
     void  handleData(ModbusMessage response, uint32_t token);
     void  handleError(Error error, uint32_t token);
 };

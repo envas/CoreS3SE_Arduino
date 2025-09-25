@@ -7,14 +7,16 @@
 
 #include "M5Modbus.hpp"
 
-
 /**
  *
  * @param baud
  */
-M5Modbus::M5Modbus(uint16_t baud) {
+M5Modbus::M5Modbus(HardwareSerial* serial, uint16_t baud) {
+
+    _serial   = serial;
     _baudrate = baud;
-    _MB = new ModbusClientRTU(REDE_PIN);
+    _MB       = new ModbusClientRTU(REDE_PIN);
+
 }
 
 M5Modbus::~M5Modbus() {
@@ -36,36 +38,45 @@ void M5Modbus::handleData(ModbusMessage response, uint32_t token) {
  * @param error
  * @param token
  */
-void handleError(Error error, uint32_t token) {
+void M5Modbus::handleError(Error error, uint32_t token) {
     Serial.println("Modbus error received");
 }
 
 /**
- * Initialization happens here
+ * Initialization
  */
 void M5Modbus::begin() {
-    // Provide onData handler function
+
     _MB->onDataHandler([this](ModbusMessage rsp, uint32_t token) {
         this->handleData(rsp, token);
     });
-    // Provide onError handler function
+
     _MB->onErrorHandler([this](Error err, uint32_t token) {
         this->handleError(err, token);
     });
-    // Set message timeout to 2000ms
-    _MB->setTimeout(2000);
-    // Setup Serial1 for ModbusRTU
-    RTUutils::prepareHardwareSerial(Serial1);
-     // Setup Serial 1 parameters. For Serial1 (and Serial2) we can use any pins
-    Serial1.begin(_baudrate, SERIAL_8N1, RX_PIN, TX_PIN);
-    // Start ModbusRTU background task
-    _MB->begin(Serial1);
+
+    _MB->setTimeout(1000);
+
+    RTUutils::prepareHardwareSerial(*_serial);;
+
+    _serial->begin(_baudrate, SERIAL_8N1, RX_PIN, TX_PIN);
+
+    _MB->begin(*_serial);
 }
 
 /**
- * Send request
+ * Send request - non blocking
  */
-Error M5Modbus::addRequest(uint32_t token, uint8_t address, FunctionCode func, uint16_t reg, uint16_t num) {
-    return _MB->addRequest(token, address, func, reg, num);
+Error M5Modbus::addRequest(ModbusMessage msg, uint32_t token) {
+    return _MB->addRequest(msg, token);
+}
 
+/**
+ * Send request - blocking
+ * @param msg
+ * @param token
+ * @return
+ */
+ModbusMessage M5Modbus::syncRequest(ModbusMessage msg, uint32_t token) {
+    return _MB->syncRequest(msg, token);
 }
